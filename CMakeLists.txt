@@ -22,7 +22,7 @@ include_directories(
 # Source files
 file(GLOB_RECURSE COMMON_SOURCES "src/common/*.c")
 # 添加新文件
-list(APPEND COMMON_SOURCES "src/common/memory_new.c" "src/common/config_new.c" "src/common/error.c")
+list(APPEND COMMON_SOURCES "src/common/memory_new.c" "src/common/error.c")
 # 使用 Mock 版本的视频处理器
 set(VIDEO_SOURCES "src/video/video_processor_mock.c")
 file(GLOB_RECURSE RADAR_SOURCES "src/radar/*.c")
