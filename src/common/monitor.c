@@ -1,4 +1,5 @@
 #include "mec_monitor.h"
+#include "mec_logging.h"
 #include "mec_metrics.h"
 #include <sys/socket.h>
 #include <sys/un.h>

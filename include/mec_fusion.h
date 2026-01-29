@@ -2,6 +2,7 @@
 #define MEC_FUSION_H
 
 #include "mec_common.h"
+#include "mec_thread.h"
 
 // Fusion configuration
 typedef struct {

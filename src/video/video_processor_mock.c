@@ -1,4 +1,5 @@
 #include "mec_video.h"
+#include "mec_logging.h"
 #include <time.h>
 
 /**

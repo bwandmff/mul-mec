@@ -1,4 +1,5 @@
 #include "mec_simulator.h"
+#include "mec_logging.h"
 #include <time.h>
 
 mec_simulator_t* simulator_create(const simulator_config_t *config) {

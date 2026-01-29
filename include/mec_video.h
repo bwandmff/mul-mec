@@ -3,6 +3,7 @@
 
 #include "mec_common.h"
 #include "mec_queue.h"
+#include "mec_thread.h"
 
 // Video stream configuration
 typedef struct {

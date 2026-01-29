@@ -2,6 +2,7 @@
 #define MEC_SIMULATOR_H
 
 #include "mec_common.h"
+#include "mec_thread.h"
 
 typedef struct {
     char data_path[256];

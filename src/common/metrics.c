@@ -1,4 +1,5 @@
 #include "mec_metrics.h"
+#include "mec_logging.h"
 
 static mec_perf_stats_t g_stats;
 

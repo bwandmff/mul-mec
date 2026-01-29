@@ -1,4 +1,6 @@
 #include "mec_fusion.h"
+#include "mec_logging.h"
+#include <math.h>
 #include <math.h>
 
 /**

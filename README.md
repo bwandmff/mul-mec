@@ -1,69 +1,60 @@
-# MEC设备软件系统 (v3.0 - Performance Edition)
+# MEC (Multi-access Edge Computing) System
 
-这是一个基于Linux C/C++开发的极致性能级MEC（移动边缘计算）设备软件系统，专为超低延迟车路协同（V2X）场景打造。
+A high-performance multi-sensor fusion system for edge computing applications, featuring video and radar data integration with real-time processing capabilities.
 
-## 🚀 3.0 版本极致性能更新
+## Features
 
-在 v2.0 的功能基础上，v3.0 对系统底层进行了“赛车级”调优，使其具备了支撑大规模、高频感知任务的工业级底座：
+- **Asynchronous Processing**: Producer-consumer architecture with message queues for efficient multi-threaded operation
+- **Multi-Sensor Fusion**: Integration of video and radar sensor data for comprehensive target tracking
+- **Real-time Performance Monitoring**: FPS, latency, and memory usage tracking
+- **Configurable Parameters**: Runtime configuration via config files
+- **Signal Handling**: Graceful shutdown and configuration reload (SIGHUP)
+- **Custom Memory Management**: Leak tracking and optimized allocation
+- **Comprehensive Logging**: Multi-level logging with timestamps
+- **V2X Communication**: Standardized message encoding for vehicle-to-everything communication
+- **Unix Socket Monitor**: Real-time system monitoring interface
 
-1. **零拷贝（Zero-Copy）架构**：
-   - 引入**引用计数（Reference Counting）**机制管理航迹列表。
-   - 数据在传感器、异步队列与融合引擎间的传递完全消除内存拷贝，显著降低 CPU 内部消耗（约 40%）。
-2. **高性能内存池（Object Pool）**：
-   - 实现“预分配+自由链表”的内存管理模式。
-   - 航迹数组的申请/释放速度达到 $O(1)$ 级别，彻底解决高频吞吐下的内存碎片问题。
-3. **实时性能监控接口 (UDS Monitor)**：
-   - 内置轻量级 **Unix Domain Socket** 服务，支持实时导出系统 JSON 状态。
-   - 运维人员可通过 `nc -U /tmp/mec_system.sock` 瞬间获取处理帧率、时延及活跃航迹数。
-4. **实时指标统计系统 (Metrics)**：
-   - 精确记录每一帧的处理耗时，自动计算平均时延（Avg Latency）与 FPS。
-   - 心跳日志每 5 秒自动汇报一次系统健康度。
+## Architecture
 
-## 🌟 核心特性回顾
+The system consists of several key components:
 
-- **异步架构**：基于生产者-消费者模型的线程安全队列。
-- **高阶算法**：6 维状态空间 CA 模型，支持马氏距离关联。
-- **国标支持**：内置 GB/T 31024 RSM 协议封装。
-- **仿真回放**：支持脱离硬件的场景脚本仿真测试。
+- **Video Processor**: Handles video stream processing and object detection
+- **Radar Processor**: Manages radar data input and preprocessing
+- **Fusion Engine**: Integrates data from multiple sensors to create unified target tracks
+- **Simulator**: Playback functionality for testing scenarios
+- **Monitor Service**: Unix socket-based monitoring and control
 
-## 项目结构
+## Building
 
-```
-mec-system/
-├── include/               # 接口定义 (.h)
-│   ├── mec_metrics.h      # 性能统计接口
-│   ├── mec_monitor.h      # UDS 监控服务接口
-│   ├── mec_queue.h        # 零拷贝异步队列
-│   ├── ...                # 算法与标准定义
-├── src/
-│   ├── common/            # 核心底座：内存池、监控、统计、协议编解码
-│   ├── video/             # 视频预处理（C++ OpenCV）
-│   ├── radar/             # 雷达解析（DFA 状态机）
-│   └── fusion/            # 6-State Kalman 融合算法
-└── config/                # 配置文件与场景文件
-```
+To build the system:
 
-## 构建和运行
-
-1. **构建项目**：
 ```bash
-./build.sh
+mkdir build
+cd build
+gcc -I../include -I../src/common -Wall -Wextra -O2 -g -pthread -D_DEFAULT_SOURCE \
+    ../src/common/*.c ../src/video/*.c ../src/radar/*.c ../src/fusion/*.c \
+    ../src/main.c -o mec_system -lm
 ```
 
-2. **生产运行**：
+## Usage
+
+Run in simulation mode:
 ```bash
-./build/mec_system -c config/mec.conf
+./mec_system --sim
 ```
 
-3. **查看实时监控指标**：
+Run with custom configuration:
 ```bash
-nc -U /tmp/mec_system.sock
+./mec_system -c /path/to/config.conf
 ```
 
-## 维护与运维
+## Requirements
 
-系统提供详尽的日志监控与性能指标，平均处理时延通常控制在微秒级（具体取决于硬件环境）。
+- Linux system with POSIX threading support
+- GCC compiler
+- Math library (libm)
+- Threads library (pthread)
 
-## 许可证
+## License
 
-本项目遵循 MIT 许可证。
+MIT License

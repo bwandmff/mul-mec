@@ -9,6 +9,14 @@
 #include <sys/time.h>
 #include <math.h>
 #include <errno.h>
+#include <stdint.h>  // 添加标准整数类型定义
+#include <stdbool.h> // 添加布尔类型定义
+
+// 包含MEC系统自定义头文件
+#include "mec_memory.h"
+#include "mec_error.h"
+#include "mec_config.h"
+#include "mec_logging.h"
 
 // Common data structures
 typedef struct {
@@ -45,17 +53,17 @@ typedef struct {
     int count;
     int capacity;
     int ref_count;            // 引用计数
-    pthread_mutex_t ref_lock; // 保护计数的锁
+    pthread_mutex_t ref_lock; // 保護計数のロック
 } track_list_t;
 
-// 性能监控统计
+// 性能監視統計
 typedef struct {
-    double fps;               // 当前处理帧率
-    double latency_ms;        // 平均处理时延
-    size_t mem_used;          // 内存占用
+    double fps;               // 現在の処理フレームレート
+    double latency_ms;        // 平均処理遅延
+    size_t mem_used;          // メモリ使用量
 } mec_metrics_t;
 
-// Memory management
+// メモリ管理
 void* mec_malloc(size_t size);
 void* mec_calloc(size_t nmemb, size_t size);
 void* mec_realloc(void *ptr, size_t size);
@@ -63,10 +71,10 @@ void mec_free(void *ptr);
 
 // ... (config and logging)
 
-// Track list utilities
+// トラックリストユーティリティ
 track_list_t* track_list_create(int initial_capacity);
-void track_list_retain(track_list_t *list);  // 增加引用
-void track_list_release(track_list_t *list); // 减少引用（计数为0时释放）
+void track_list_retain(track_list_t *list);  // 引用カウンタを増やす
+void track_list_release(track_list_t *list); // 引用カウンタを減らす（0になったら解放）
 int track_list_add(track_list_t *list, const target_track_t *track);
 void track_list_clear(track_list_t *list);
 

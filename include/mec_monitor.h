@@ -3,6 +3,7 @@
 
 #include "mec_common.h"
 #include "mec_fusion.h"
+#include "mec_thread.h"
 
 /**
  * @brief 实时监控服务模块

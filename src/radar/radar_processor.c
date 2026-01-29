@@ -1,4 +1,6 @@
 #include "mec_radar.h"
+#include "mec_logging.h"
+#include <math.h>
 #include <fcntl.h>
 #include <termios.h>
 #include <sys/select.h>

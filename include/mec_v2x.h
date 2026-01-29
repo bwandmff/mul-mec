@@ -1,6 +1,7 @@
 #ifndef MEC_V2X_H
 #define MEC_V2X_H
 
+#include <stdint.h>  // 添加标准整数类型定义
 #include "mec_common.h"
 
 /**

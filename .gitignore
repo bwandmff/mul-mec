@@ -1,0 +1,49 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+mec_system
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Configuration (except default templates)
+!/config/
+config/*.conf
+!/config/scenario_test.txt
+
+# System socket files
+*.sock
+
+# Debug and profiling
+*.gmon
+*.gcda
+*.gcno
+*.profraw
+*.profdata
+
+# Memory analysis
+*.memdump
+*.heapdump

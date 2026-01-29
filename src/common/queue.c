@@ -1,4 +1,5 @@
 #include "mec_queue.h"
+#include "mec_logging.h"
 #include <errno.h>
 
 /**

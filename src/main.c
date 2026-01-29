@@ -8,6 +8,7 @@
 #include "mec_metrics.h"
 #include "mec_monitor.h"
 #include <signal.h>
+#include <stdint.h>
 
 static int running = 1;
 static int reload_config = 0;
@@ -36,36 +37,57 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // 2. 初始化日志系统与性能监控
-    log_init("/var/log/mec_system.log", LOG_INFO);
+    // 2. 初始化内存管理系统
+    mec_memory_init();
+    
+    // 3. 初始化日志系统与性能监控
+    log_init("/tmp/mec_system.log", LOG_INFO);
     metrics_init();
     LOG_INFO("MEC System starting... (Mode: %s)", sim_mode ? "Simulation" : "Real Sensors");
     
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
     
-    // 3. 加载配置文件
-    config_t *config = config_load(config_path);
-    if (!config) {
-        LOG_WARN("Failed to load configuration from %s", config_path);
-        if (!sim_mode) return 1;
+    // 4. 加载配置文件
+    config_t *config = NULL;
+    mec_error_code_t ret = config_load(&config, config_path);
+    if (ret != MEC_OK) {
+        LOG_WARN("Failed to load configuration from %s: %s", config_path, mec_error_string(ret));
+        if (!sim_mode) {
+            LOG_ERROR("Cannot run without valid configuration in non-sim mode");
+            ret = MEC_ERROR_INIT_FAILED;
+            goto cleanup;
+        }
     }
     
-    // 4. 创建全局异步消息队列 (容量设为 50)
+    // 5. 创建全局异步消息队列 (容量设为 50)
     mec_queue_t *msg_queue = mec_queue_create(50);
     if (!msg_queue) {
         LOG_ERROR("Failed to create message queue");
-        return 1;
+        ret = MEC_ERROR_INIT_FAILED;
+        goto cleanup;
     }
 
-    // 5. 初始化融合引擎配置
+    // 6. 初始化融合引擎配置
     fusion_config_t fusion_cfg = {0};
+    int temp_int;
+    double temp_double;
+    
     if (config) {
-        fusion_cfg.association_threshold = config_get_double(config, "fusion.association_threshold", 5.0);
-        fusion_cfg.position_weight = config_get_double(config, "fusion.position_weight", 1.0);
-        fusion_cfg.velocity_weight = config_get_double(config, "fusion.velocity_weight", 0.1);
-        fusion_cfg.confidence_threshold = config_get_double(config, "fusion.confidence_threshold", 0.3);
-        fusion_cfg.max_track_age = config_get_int(config, "fusion.max_track_age", 50);
+        MEC_LOG_ERROR_IF_ERROR(config_get_double(config, "fusion.association_threshold", &temp_double, 5.0));
+        fusion_cfg.association_threshold = temp_double;
+        
+        MEC_LOG_ERROR_IF_ERROR(config_get_double(config, "fusion.position_weight", &temp_double, 1.0));
+        fusion_cfg.position_weight = temp_double;
+        
+        MEC_LOG_ERROR_IF_ERROR(config_get_double(config, "fusion.velocity_weight", &temp_double, 0.1));
+        fusion_cfg.velocity_weight = temp_double;
+        
+        MEC_LOG_ERROR_IF_ERROR(config_get_double(config, "fusion.confidence_threshold", &temp_double, 0.3));
+        fusion_cfg.confidence_threshold = temp_double;
+        
+        MEC_LOG_ERROR_IF_ERROR(config_get_int(config, "fusion.max_track_age", &temp_int, 50));
+        fusion_cfg.max_track_age = temp_int;
     } else {
         fusion_cfg.association_threshold = 5.0;
         fusion_cfg.confidence_threshold = 0.3;
@@ -73,49 +95,88 @@ int main(int argc, char *argv[]) {
     }
 
     fusion_processor_t *fusion_proc = fusion_processor_create(&fusion_cfg);
+    if (!fusion_proc) {
+        LOG_ERROR("Failed to create fusion processor");
+        ret = MEC_ERROR_INIT_FAILED;
+        goto cleanup;
+    }
+    
     video_processor_t *video_proc = NULL;
     radar_processor_t *radar_proc = NULL;
     mec_simulator_t *simulator = NULL;
 
-    // 6. 启动数据源（模拟器或真实传感器）
+    // 7. 启动数据源（模拟器或真实传感器）
     if (sim_mode) {
         simulator_config_t sim_cfg = {
             .playback_speed = 1.0,
             .loop = 1
         };
-        const char *sim_data = (config) ? config_get_string(config, "sim.data_path", "config/scenario_test.txt") : "config/scenario_test.txt";
+        
+        char sim_data[256];
+        MEC_LOG_ERROR_IF_ERROR(config_get_string(config, "sim.data_path", sim_data, sizeof(sim_data), "config/scenario_test.txt"));
         strncpy(sim_cfg.data_path, sim_data, sizeof(sim_cfg.data_path) - 1);
         
         simulator = simulator_create(&sim_cfg);
-        // 注意：这里需要给模拟器也适配队列，或者在主循环里手动入队（为了演示一致性，我们在主循环入队）
-        if (!simulator || simulator_start(simulator) != 0) {
+        if (!simulator) {
+            LOG_ERROR("Failed to create simulator");
+            ret = MEC_ERROR_INIT_FAILED;
+            goto cleanup;
+        }
+        
+        if (simulator_start(simulator) != 0) {
             LOG_ERROR("Failed to start simulator");
+            ret = MEC_ERROR_START_FAILED;
             goto cleanup;
         }
     } else {
         // 真实传感器模式：将队列句柄传入配置，实现生产者模式
         video_config_t video_cfg = {0};
-        strncpy(video_cfg.rtsp_url, config_get_string(config, "video.rtsp_url", "rtsp://192.168.1.100:554/stream"), sizeof(video_cfg.rtsp_url) - 1);
+        
+        char rtsp_url[256];
+        MEC_LOG_ERROR_IF_ERROR(config_get_string(config, "video.rtsp_url", rtsp_url, sizeof(rtsp_url), "rtsp://192.168.1.100:554/stream"));
+        strncpy(video_cfg.rtsp_url, rtsp_url, sizeof(video_cfg.rtsp_url) - 1);
         video_cfg.camera_id = 1;
         video_cfg.target_queue = msg_queue; // 绑定异步队列
         
         radar_config_t radar_cfg = {0};
-        strncpy(radar_cfg.device_path, config_get_string(config, "radar.device_path", "/dev/ttyUSB0"), sizeof(radar_cfg.device_path) - 1);
+        
+        char device_path[256];
+        MEC_LOG_ERROR_IF_ERROR(config_get_string(config, "radar.device_path", device_path, sizeof(device_path), "/dev/ttyUSB0"));
+        strncpy(radar_cfg.device_path, device_path, sizeof(radar_cfg.device_path) - 1);
         radar_cfg.radar_id = 2;
         radar_cfg.target_queue = msg_queue; // 绑定异步队列
         
         video_proc = video_processor_create(&video_cfg);
-        radar_proc = radar_processor_create(&radar_cfg);
+        if (!video_proc) {
+            LOG_ERROR("Failed to create video processor");
+            ret = MEC_ERROR_INIT_FAILED;
+            goto cleanup;
+        }
         
-        if (video_processor_start(video_proc) != 0 || radar_processor_start(radar_proc) != 0) {
-            LOG_ERROR("Failed to start sensor threads");
+        radar_proc = radar_processor_create(&radar_cfg);
+        if (!radar_proc) {
+            LOG_ERROR("Failed to create radar processor");
+            ret = MEC_ERROR_INIT_FAILED;
+            goto cleanup;
+        }
+        
+        if (video_processor_start(video_proc) != 0) {
+            LOG_ERROR("Failed to start video processor");
+            ret = MEC_ERROR_START_FAILED;
+            goto cleanup;
+        }
+        
+        if (radar_processor_start(radar_proc) != 0) {
+            LOG_ERROR("Failed to start radar processor");
+            ret = MEC_ERROR_START_FAILED;
             goto cleanup;
         }
     }
 
-    // 7. 启动融合处理器线程
+    // 8. 启动融合处理器线程
     if (fusion_processor_start(fusion_proc) != 0) {
         LOG_ERROR("Failed to start fusion processor");
+        ret = MEC_ERROR_START_FAILED;
         goto cleanup;
     }
 
@@ -127,18 +188,28 @@ int main(int argc, char *argv[]) {
     
     LOG_INFO("MEC System Running in Asynchronous Mode (Queue: %d msgs limit)", 50);
     
-    // 8. 核心消息循环 (消费者模式)
+    // 9. 核心消息循环 (消费者模式)
     while (running) {
         // --- 检查并处理配置重载 ---
         if (reload_config) {
-            config_t *new_cfg = config_load(config_path);
-            if (new_cfg) {
+            config_t *new_cfg = NULL;
+            if (config_reload(&new_cfg, config_path) == MEC_OK) {
                 // 更新融合参数（示例）
-                fusion_cfg.association_threshold = config_get_double(new_cfg, "fusion.association_threshold", 5.0);
-                fusion_cfg.confidence_threshold = config_get_double(new_cfg, "fusion.confidence_threshold", 0.3);
+                MEC_LOG_ERROR_IF_ERROR(config_get_double(new_cfg, "fusion.association_threshold", &temp_double, 5.0));
+                fusion_cfg.association_threshold = temp_double;
+                
+                MEC_LOG_ERROR_IF_ERROR(config_get_double(new_cfg, "fusion.confidence_threshold", &temp_double, 0.3));
+                fusion_cfg.confidence_threshold = temp_double;
+                
                 LOG_INFO("Configuration reloaded (New Association Threshold: %.2f)", fusion_cfg.association_threshold);
-                config_free(config);
+                
+                // 释放旧配置，使用新配置
+                if (config) {
+                    config_free(config);
+                }
                 config = new_cfg;
+            } else {
+                LOG_ERROR("Failed to reload configuration");
             }
             reload_config = 0;
         }
@@ -151,7 +222,7 @@ int main(int argc, char *argv[]) {
             gettimeofday(&t1, NULL);
 
             // 拿到数据，立刻投喂给融合引擎
-            fusion_processor_add_tracks(fusion_proc, incoming_msg.tracks, incoming_msg.sensor_id);
+            MEC_LOG_ERROR_IF_ERROR(fusion_processor_add_tracks(fusion_proc, incoming_msg.tracks, incoming_msg.sensor_id));
             
             // 重要：队列 pop 出来的 tracks 所有权转移给了主循环，处理完需释放引用
             track_list_release(incoming_msg.tracks);
@@ -188,22 +259,40 @@ int main(int argc, char *argv[]) {
                 // 模拟器特殊处理：主动拉取
                 track_list_t *vt = simulator_get_video_tracks(simulator);
                 if (vt && vt->count > 0) {
-                    fusion_processor_add_tracks(fusion_proc, vt, 1);
+                    MEC_LOG_ERROR_IF_ERROR(fusion_processor_add_tracks(fusion_proc, vt, 1));
                     track_list_clear(vt);
                 }
             }
         }
     }
     
+    ret = MEC_OK; // 正常退出
+    
 cleanup:
     LOG_INFO("MEC System shutting down...");
     if (monitor_service) monitor_stop_service(monitor_service);
-    if (simulator) simulator_destroy(simulator);
-    if (video_proc) { video_processor_stop(video_proc); video_processor_destroy(video_proc); }
-    if (radar_proc) { radar_processor_stop(radar_proc); radar_processor_destroy(radar_proc); }
-    if (fusion_proc) { fusion_processor_stop(fusion_proc); fusion_processor_destroy(fusion_proc); }
+    if (simulator) {
+        simulator_stop(simulator);
+        simulator_destroy(simulator);
+    }
+    if (video_proc) { 
+        video_processor_stop(video_proc); 
+        video_processor_destroy(video_proc); 
+    }
+    if (radar_proc) { 
+        radar_processor_stop(radar_proc); 
+        radar_processor_destroy(radar_proc); 
+    }
+    if (fusion_proc) { 
+        fusion_processor_stop(fusion_proc); 
+        fusion_processor_destroy(fusion_proc); 
+    }
     if (msg_queue) mec_queue_destroy(msg_queue);
     if (config) config_free(config);
     log_cleanup();
-    return 0;
+    mec_memory_cleanup();
+    
+    LOG_INFO("MEC System shutdown complete. Peak memory usage: %zu bytes", mec_memory_get_peak_usage());
+    
+    return (ret == MEC_OK) ? 0 : 1;
 }
