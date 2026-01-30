@@ -17,11 +17,15 @@ mec_monitor_t* monitor_start_service(const monitor_config_t *config) {
     mec_monitor_t *mon = mec_malloc(sizeof(mec_monitor_t));
     if (!mon) return NULL;
     
+    // 初始化整个结构体为0，确保所有字段都被初始化
+    memset(mon, 0, sizeof(mec_monitor_t));
     mon->config = *config;
+    mon->server_fd = -1;  // 初始化为-1，表示无效的文件描述符
     
     // 启动独立的服务线程
     if (thread_create(&mon->thread_ctx, monitor_server_thread, mon) != 0) {
         LOG_ERROR("Monitor: Failed to create server thread");
+        // 清理已分配的资源
         mec_free(mon);
         return NULL;
     }
@@ -31,8 +35,30 @@ mec_monitor_t* monitor_start_service(const monitor_config_t *config) {
 
 void monitor_stop_service(mec_monitor_t *mon) {
     if (!mon) return;
-    thread_destroy(&mon->thread_ctx);
-    if (mon->server_fd >= 0) close(mon->server_fd);
+    
+    // 先停止线程，然后才清理资源
+    if (mon->thread_ctx.thread != 0) {
+        // 设置运行标志为false，让线程自行退出
+        thread_context_t *ctx = &mon->thread_ctx;
+        ctx->running = false;
+        
+        // 发送信号唤醒等待的线程
+        pthread_mutex_lock(&ctx->mutex);
+        pthread_cond_broadcast(&ctx->cond);
+        pthread_mutex_unlock(&ctx->mutex);
+        
+        // 等待线程结束
+        if (pthread_join(ctx->thread, NULL) != 0) {
+            LOG_WARN("Monitor: Failed to join monitor thread");
+        }
+    }
+    
+    // 清理资源
+    if (mon->server_fd >= 0) {
+        close(mon->server_fd);
+        mon->server_fd = -1;  // 避免重复关闭
+    }
+    
     unlink(mon->config.socket_path);
     mec_free(mon);
 }

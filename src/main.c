@@ -104,6 +104,7 @@ int main(int argc, char *argv[]) {
     video_processor_t *video_proc = NULL;
     radar_processor_t *radar_proc = NULL;
     mec_simulator_t *simulator = NULL;
+    mec_monitor_t *monitor_service = NULL;  // 确保初始化为NULL
 
     // 7. 启动数据源（模拟器或真实传感器）
     if (sim_mode) {
@@ -184,7 +185,10 @@ int main(int argc, char *argv[]) {
     monitor_config_t mon_cfg = {0};
     strncpy(mon_cfg.socket_path, "/tmp/mec_system.sock", sizeof(mon_cfg.socket_path)-1);
     mon_cfg.fusion_proc = fusion_proc;
-    mec_monitor_t *monitor_service = monitor_start_service(&mon_cfg);
+    monitor_service = monitor_start_service(&mon_cfg);
+    if (!monitor_service) {
+        LOG_WARN("Failed to start monitor service, continuing without monitoring");
+    }
     
     LOG_INFO("MEC System Running in Asynchronous Mode (Queue: %d msgs limit)", 50);
     
@@ -270,7 +274,10 @@ int main(int argc, char *argv[]) {
     
 cleanup:
     LOG_INFO("MEC System shutting down...");
-    if (monitor_service) monitor_stop_service(monitor_service);
+    if (monitor_service) {
+        monitor_stop_service(monitor_service);
+        monitor_service = NULL;
+    }
     if (simulator) {
         simulator_stop(simulator);
         simulator_destroy(simulator);

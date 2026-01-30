@@ -17,11 +17,20 @@ int thread_create(thread_context_t *ctx, void *(*start_routine)(void*), void *ar
 
 void thread_destroy(thread_context_t *ctx) {
     if (ctx) {
+        // 确保线程处于非运行状态
         ctx->running = false;
-        pthread_cond_broadcast(&ctx->cond); // Wake up any waiting threads
+        
+        // 唤醒任何等待的线程
+        pthread_mutex_lock(&ctx->mutex);
+        pthread_cond_broadcast(&ctx->cond);
+        pthread_mutex_unlock(&ctx->mutex);
+        
+        // 等待线程结束
         if (pthread_join(ctx->thread, NULL) != 0) {
-            // Handle join error if needed
+            // LOG_WARN("Thread: Failed to join thread");
         }
+        
+        // 销毁同步原语
         pthread_mutex_destroy(&ctx->mutex);
         pthread_cond_destroy(&ctx->cond);
     }
