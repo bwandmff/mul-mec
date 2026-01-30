@@ -26,8 +26,10 @@ void thread_destroy(thread_context_t *ctx) {
         pthread_mutex_unlock(&ctx->mutex);
         
         // 等待线程结束
-        if (pthread_join(ctx->thread, NULL) != 0) {
-            // LOG_WARN("Thread: Failed to join thread");
+        if (ctx->thread != 0) {
+            if (pthread_join(ctx->thread, NULL) != 0) {
+                // LOG_WARN("Thread: Failed to join thread");
+            }
         }
         
         // 销毁同步原语

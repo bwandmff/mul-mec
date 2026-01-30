@@ -78,7 +78,8 @@ void* monitor_server_thread(void *arg) {
     // 2. 绑定路径
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, mon->config.socket_path, sizeof(addr.sun_path)-1);
+    memcpy(addr.sun_path, mon->config.socket_path, sizeof(addr.sun_path)-1);
+    addr.sun_path[sizeof(addr.sun_path)-1] = '\0';
     unlink(mon->config.socket_path); // 确保旧路径被清理
 
     if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
@@ -117,7 +118,7 @@ void* monitor_server_thread(void *arg) {
         // 为了演示，我们生成一个状态 JSON
         int active_tracks = (mon->config.fusion_proc) ? mon->config.fusion_proc->track_count : 0;
         
-        snprintf(buffer, sizeof(buffer), 
+        int len = snprintf(buffer, sizeof(buffer), 
             "{\n"
             "  \"status\": \"running\",\n"
             "  \"tracks\": %d,\n"
@@ -125,7 +126,9 @@ void* monitor_server_thread(void *arg) {
             "}\n", 
             active_tracks, time(NULL)); // 实际项目中可加入更多 metrics 接口数据
 
-        send(client_fd, buffer, strlen(buffer), 0);
+        if (len > 0 && (size_t)len < sizeof(buffer)) {
+            send(client_fd, buffer, len, 0);
+        }
         close(client_fd);
     }
 

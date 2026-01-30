@@ -30,7 +30,7 @@ void metrics_report() {
         double avg_lat = (g_stats.frame_count > 0) ? (g_stats.total_latency_ms / g_stats.frame_count) : 0;
         
         LOG_INFO("PERF: FPS: %.2f | Avg Latency: %.3f ms | Frames: %ld", 
-                 fps, avg_lat, g_stats.frame_count);
+                 fps, avg_lat, (long)g_stats.frame_count);
     }
     pthread_mutex_unlock(&g_stats.lock);
 }

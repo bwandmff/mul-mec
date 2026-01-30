@@ -13,7 +13,7 @@
  */
 
 typedef struct {
-    char socket_path[128];
+    char socket_path[108];  // 匹配 Unix domain socket 的 sun_path 长度限制
     fusion_processor_t *fusion_proc; // 需要监控的算法句柄
 } monitor_config_t;
 

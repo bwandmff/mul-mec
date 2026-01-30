@@ -24,7 +24,8 @@ mec_error_code_t config_load(config_t **config, const char *filename) {
     // Initialize config structure
     memset(*config, 0, sizeof(config_t));
     (*config)->count = 0;
-    strcpy((*config)->filename, filename);
+    strncpy((*config)->filename, filename, sizeof((*config)->filename) - 1);
+    (*config)->filename[sizeof((*config)->filename) - 1] = '\0';
 
     // Initialize read-write lock
     if (pthread_rwlock_init(&(*config)->lock, NULL) != 0) {
@@ -57,10 +58,21 @@ mec_error_code_t config_load(config_t **config, const char *filename) {
             }
             while (*value == ' ' || *value == '\t') value++;
 
-            strncpy((*config)->entries[(*config)->count].key, key, sizeof((*config)->entries[(*config)->count].key) - 1);
-            strncpy((*config)->entries[(*config)->count].value, value, sizeof((*config)->entries[(*config)->count].value) - 1);
-            (*config)->entries[(*config)->count].key[sizeof((*config)->entries[(*config)->count].key) - 1] = '\0';
-            (*config)->entries[(*config)->count].value[sizeof((*config)->entries[(*config)->count].value) - 1] = '\0';
+            // 确保key和value长度不会导致缓冲区溢出
+            size_t key_len = strlen(key);
+            size_t val_len = strlen(value);
+            
+            if (key_len >= sizeof((*config)->entries[(*config)->count].key)) {
+                key_len = sizeof((*config)->entries[(*config)->count].key) - 1;
+            }
+            if (val_len >= sizeof((*config)->entries[(*config)->count].value)) {
+                val_len = sizeof((*config)->entries[(*config)->count].value) - 1;
+            }
+            
+            memcpy((*config)->entries[(*config)->count].key, key, key_len);
+            (*config)->entries[(*config)->count].key[key_len] = '\0';
+            memcpy((*config)->entries[(*config)->count].value, value, val_len);
+            (*config)->entries[(*config)->count].value[val_len] = '\0';
             (*config)->count++;
         }
     }

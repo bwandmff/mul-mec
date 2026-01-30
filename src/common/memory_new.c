@@ -15,7 +15,6 @@ typedef struct {
 // 内存池实例
 static mem_pool_t small_pool = {0};
 static mem_pool_t medium_pool = {0};
-static pthread_mutex_t global_lock = PTHREAD_MUTEX_INITIALIZER;
 
 // 统计信息
 static size_t current_allocated = 0;

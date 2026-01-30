@@ -53,7 +53,7 @@ int log_init(const char *filename, log_level_t level) {
     
     pthread_mutex_unlock(&log_mutex);
     
-    LOG_INFO("Logging system initialized (Level: %d, Target: %d)", level, g_log_manager.target);
+    LOG_INFO("Logging system initialized (Level: %d, Target: %d)", (int)level, (int)g_log_manager.target);
     
     return 0;
 }
@@ -83,7 +83,7 @@ void log_set_target(log_target_t target) {
     pthread_mutex_unlock(&log_mutex);
 }
 
-static void log_write_message(FILE *output, log_level_t level, const char *timestamp, 
+static void log_write_message(FILE *output, log_level_t level __attribute__((unused)), const char *timestamp, 
                             const char *level_str, const char *module_info, 
                             const char *formatted_msg) {
     fprintf(output, "[%s] [%s] %s%s\n", timestamp, level_str, module_info, formatted_msg);
